@@ -137,10 +137,10 @@ unsigned long checkMotion() {
 
 // 불꽃감지 센서 점검 관련 메소드
 bool outputIRSignal() {
-  int flamesensorValue = analogRead(flameSensorPin); // 불꽃감지 센서 동작
   int threshold = 500; // 불꽃 센서가 반응하는 적외선 수치
 
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
+  int flamesensorValue = analogRead(flameSensorPin); // 불꽃감지 센서 동작
   delay(3000); // 3초 대기
   digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
 
