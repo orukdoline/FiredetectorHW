@@ -1,78 +1,231 @@
+#include "RTC.h"
+#include <NTPClient.h>
+
+#if defined(ARDUINO_PORTENTA_C33)
+#include <WiFiC3.h>
+#elif defined(ARDUINO_UNOWIFIR4)
+#include <WiFiS3.h>
+#endif
+
+#include <ArduinoJson.h>
+#include <PubSubClient.h>
+#include "WiFiSSLClient.h"
+#include <WiFiUdp.h>
 #include <DHT.h>
 
+// WiFi credentials
+const char *ssid = "ASUS";             // Replace with your WiFi name
+const char *pass = "ares616>@++";   // Replace with your WiFi password
+
+// MQTT Broker settings
+const int mqtt_port = 8883;  // MQTT port (TLS)
+const char *mqtt_broker = "fbb1763c.ala.us-east-1.emqxsl.com";  // EMQX broker endpoint
+const char *mqtt_topic = "fire_detector";     // MQTT topic
+const char *mqtt_username = "capstone";  // MQTT username for authentication
+const char *mqtt_password = "1234";  // MQTT password for authentication
+
+// WiFi and MQTT client initialization
+WiFiSSLClient client;
+PubSubClient mqtt_client(client);
+
+int wifiStatus = WL_IDLE_STATUS;
+WiFiUDP Udp; // A UDP instance to let us send and receive packets over UDP
+NTPClient timeClient(Udp);
+
+static const char ca_cert[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
+QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
+CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
+nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
+43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
+T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
+gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
+BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
+TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
+DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
+hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
+06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
+PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
+YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
+CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
+-----END CERTIFICATE-----
+)EOF";
+
 const int flameSensorPin = 0; // 불꽃 감지 센서 핀
-// const int pirSensorPin = 2; // 인체 감지 센서 핀
 const int irLedPin = 3; // 적외선 송신 모듈 핀
 DHT dht(1, DHT22); // 온습도 센서 핀
 
-unsigned long lastIRTime = 0; // 점검이 동작했던 시간정보를 저장하기 위한 변수
+bool isSensorCheck = false;
 
-void setup() {
-  Serial.begin(9600);
-  pinMode(flameSensorPin, INPUT); // 불꽃 센서 입력모드 설정
-  // pinMode(pirSensorPin, INPUT); // 인체감지 센서 입력모드 설정
-  pinMode(irLedPin, OUTPUT); // 적외선 송신 모듈 출력모드 설정
-  dht.begin(); // 온습도 센서 동작
+void printWifiStatus() {
+  // print the SSID of the network you're attached to:
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
 
-  while (!Serial); // 시리얼 통신이 정상적으로 되는지 체크
+  // print your board's IP address:
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
 
-  
+  // print the received signal strength:
+  long rssi = WiFi.RSSI();
+  Serial.print("signal strength (RSSI):");
+  Serial.print(rssi);
+  Serial.println(" dBm");
 }
 
-void loop() {
-
-  unsigned long currentTime = millis(); // 현재 시간 정보 저장
-  bool isSensorCheck = true;
-
-  // 1시간에 한 번 불꽃감지 센서 점검
-  if (currentTime - lastIRTime >= 3600000) {
-    isSensorCheck = outputIRSignal(); // 점검 실행
-    lastIRTime = currentTime; // 점검을 했던 시간 정보 저장
+void connectToWiFi(){
+  // check for the WiFi module:
+  if (WiFi.status() == WL_NO_MODULE) {
+    Serial.println("Communication with WiFi module failed!");
+    // don't continue
+    while (true);
   }
 
-  
-  float temperature = dht.readTemperature(); // 온도 센서 데이터
-  float humidity = dht.readHumidity(); // 습도 센서 데이터
-  isSensorCheck = outputIRSignal();
-  // bool isFlameDetected = checkFlame(); // 불꽃감지 센서 데이터
-  //unsigned long isMotionDetected = checkMotion(); // 인체감지 센서 데이터
+  String fv = WiFi.firmwareVersion();
+  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
+    Serial.println("Please upgrade the firmware");
+  }
 
-  Serial.print("온도 : ");
-  Serial.println(temperature);
-  Serial.print("습도 : ");
-  Serial.println(humidity);
-  Serial.print("점검결과 : ");
-  Serial.println(isSensorCheck);
+  // attempt to connect to WiFi network:
+  while (wifiStatus != WL_CONNECTED) {
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
+    wifiStatus = WiFi.begin(ssid, pass);
 
-  delay(5000); // 10초 대기
+    // wait 10 seconds for connection:
+    delay(10000);
+  }
+
+  Serial.println("Connected to WiFi");
+  printWifiStatus();
 }
 
-// 화재감지 관련 메소드
-bool checkFlame() {
-  int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
-  float temperature = dht.readTemperature(); // 온도 센서 동작
-  int threshold = 500; // 불꽃 센서가 반응하는 적외선 수치
-  if (flamesensorValue > threshold && temperature > 50) return true;  // 불꽃이 감지되고 주변온도가 높으면
-  else return false; // 위 조건을 둘 다 만족하지 않으면
+void connectToMQTT() {
+    client.setCACert(ca_cert);
+    while (!mqtt_client.connected()) {
+        String client_id = "esp8266-client-1234";
+        Serial.println("Connecting to MQTT Broker.....");
+        if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
+            Serial.println("Connected to MQTT broker");
+        } else {
+            Serial.print("Failed to connect to MQTT broker, rc=");
+            Serial.println(mqtt_client.state());
+            delay(5000);
+        }
+    }
 }
 
-// 인체감지 관련 메소드
-//unsigned long checkMotion() {
-//  int motionValue = digitalRead(pirSensorPin); // 인체 감지 센서 동작
-//  if (motionValue == HIGH) {
-//    unsigned long epochTime = timeClient.getEpochTime(); // 현재시간 정보 데이터
-//    return epochTime;  // 움직임이 감지되면
-//  }
-// }
+void mqttCallback(char *topic, byte *payload, unsigned int length) {
+    Serial.print("Message received on topic: ");
+    Serial.print(topic);
+    Serial.print("]: ");
+    for (int i = 0; i < length; i++) {
+        Serial.print((char) payload[i]);
+    }
+    Serial.println();
+}
 
-// 불꽃감지 센서 점검 관련 메소드
 bool outputIRSignal() {
-
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
   int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
   delay(3000); // 3초 대기
-  //digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
+  digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
 
-  if (flamesensorValue == true) return true;  // 불꽃 센서가 정상작동하면
-  else return false; // 불꽃 센서가 오작동하면
+  return flamesensorValue == 0 ? true : false;
+}
+
+bool checkFlame() {
+  int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
+  return flamesensorValue == 0 ? true : false;
+}
+
+void alarmCallback() {
+  isSensorCheck = outputIRSignal();
+}
+
+void setup(){
+  Serial.begin(9600);
+  while (!Serial);
+
+  connectToWiFi();
+  RTC.begin();
+  Serial.println("\nStarting connection to server...");
+  timeClient.begin();
+  timeClient.update();
+
+  auto timeZoneOffsetHours = 9;
+  auto unixTime = timeClient.getEpochTime() + (timeZoneOffsetHours * 3600);
+  Serial.print("Unix time = ");
+  Serial.println(unixTime);
+  RTCTime timeToSet = RTCTime(unixTime);
+  RTC.setTime(timeToSet);
+
+  // Trigger the alarm every time the seconds are zero
+  RTCTime alarmTime;
+  alarmTime.setSecond(0);
+
+  // Make sure to only match on the seconds in this example - not on any other parts of the date/time
+  AlarmMatch matchTime;
+  matchTime.addMatchSecond();
+
+  //sets the alarm callback
+  RTC.setAlarmCallback(alarmCallback, alarmTime, matchTime);
+
+  // Retrieve the date and time from the RTC and print them
+  RTCTime currentTime;
+  RTC.getTime(currentTime); 
+  Serial.println("The RTC was just set to: " + String(currentTime));
+
+  mqtt_client.setServer(mqtt_broker, mqtt_port);
+  mqtt_client.setCallback(mqttCallback);
+  connectToMQTT();
+
+  pinMode(flameSensorPin, INPUT); // 불꽃 센서 입력모드 설정
+  pinMode(irLedPin, OUTPUT); // 적외선 송신 모듈 출력모드 설정
+  dht.begin(); // 온습도 센서 동작
+}
+
+void loop(){
+  timeClient.update();
+
+  if (!mqtt_client.connected()) {
+      connectToMQTT();
+  }
+  mqtt_client.loop();
+
+  float temperature = dht.readTemperature(); // 온도 센서 데이터
+  float humidity = dht.readHumidity(); // 습도 센서 데이터
+  bool isFlameDetected = checkFlame(); // 불꽃감지 센서 데이터
+
+  RTCTime currentTime;
+  RTC.getTime(currentTime); 
+
+  DynamicJsonDocument jsonDocument(200);
+
+  jsonDocument["id"] = 1;
+  jsonDocument["name"] = "정보공학관 2층";
+  jsonDocument["temperature"] = temperature;
+  jsonDocument["humidity"] = humidity;
+  jsonDocument["fireDetected"] = isFlameDetected;
+  jsonDocument["checkResult"] = isSensorCheck;
+  jsonDocument["time"] = currentTime.getUnixTime();
+
+  // JSON 문자열을 고정할 버퍼
+  char buffer[256];
+
+  // JSON 문서를 문자열로 직렬화
+  serializeJson(jsonDocument, buffer);
+
+  // MQTT 브로커에 JSON 문자열 게시
+  mqtt_client.publish(mqtt_topic, buffer);
+  
+  delay(4000);
 }
