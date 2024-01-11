@@ -14,8 +14,8 @@
 #include <DHT.h>
 
 // WiFi credentials
-const char *ssid = "ASUS";             // Replace with your WiFi name
-const char *pass = "ares616>@++";   // Replace with your WiFi password
+const char *ssid = "JSW iPhone14 Pro";             // Replace with your WiFi name
+const char *pass = "0000001151";   // Replace with your WiFi password
 
 // MQTT Broker settings
 const int mqtt_port = 8883;  // MQTT port (TLS)
@@ -60,8 +60,10 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 const int flameSensorPin = 0; // 불꽃 감지 센서 핀
 const int irLedPin = 3; // 적외선 송신 모듈 핀
 DHT dht(1, DHT22); // 온습도 센서 핀
+const int redLed = 4; // RedLED 핀
+const int greenLed = 5; // GreenLED 핀
 
-bool isSensorCheck = false;
+bool isSensorCheck = true;
 
 void printWifiStatus() {
   // print the SSID of the network you're attached to:
@@ -133,12 +135,23 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
     Serial.println();
 }
 
+void OnRedLed() {
+  analogWrite(greenLed, 0);
+  analogWrite(redLed, 800);
+  delay(1000);
+  analogWrite(redLed, 0);
+}
+
+void OnGreenLed() {
+  analogWrite(greenLed, 800);
+}
+
 bool outputIRSignal() {
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
   int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
-  delay(3000); // 3초 대기
+  delay(5000); // 5초 대기
   digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
-
+  Serial.println("Check function operation!");
   return flamesensorValue == 0 ? true : false;
 }
 
@@ -161,23 +174,23 @@ void setup(){
   timeClient.begin();
   timeClient.update();
 
-  auto timeZoneOffsetHours = 9;
-  auto unixTime = timeClient.getEpochTime() + (timeZoneOffsetHours * 3600);
+  // auto timeZoneOffsetHours = 9;
+  auto unixTime = timeClient.getEpochTime(); // + (timeZoneOffsetHours * 3600);
   Serial.print("Unix time = ");
   Serial.println(unixTime);
   RTCTime timeToSet = RTCTime(unixTime);
   RTC.setTime(timeToSet);
 
   // Trigger the alarm every time the seconds are zero
-  RTCTime alarmTime;
-  alarmTime.setSecond(0);
+  //RTCTime alarmTime;
+  //alarmTime.setSecond(0);
 
   // Make sure to only match on the seconds in this example - not on any other parts of the date/time
-  AlarmMatch matchTime;
-  matchTime.addMatchSecond();
+  //AlarmMatch matchTime;
+  //matchTime.addMatchSecond();
 
   //sets the alarm callback
-  RTC.setAlarmCallback(alarmCallback, alarmTime, matchTime);
+  //RTC.setAlarmCallback(alarmCallback, alarmTime, matchTime);
 
   // Retrieve the date and time from the RTC and print them
   RTCTime currentTime;
@@ -205,18 +218,27 @@ void loop(){
   float humidity = dht.readHumidity(); // 습도 센서 데이터
   bool isFlameDetected = checkFlame(); // 불꽃감지 센서 데이터
 
+  //Serial.print("temperature : ");
+  //Serial.println(temperature);
+  //Serial.print("humidity : ");
+  //Serial.println(humidity);
+
   RTCTime currentTime;
   RTC.getTime(currentTime); 
 
+  // Serial.println(currentTime.getUnixTime() * 1000);
+
+  isFlameDetected == true ? OnRedLed() : OnGreenLed();
+
   DynamicJsonDocument jsonDocument(200);
 
-  jsonDocument["id"] = 1;
+  jsonDocument["id"] = 2;
   jsonDocument["name"] = "정보공학관 2층";
-  jsonDocument["temperature"] = temperature;
-  jsonDocument["humidity"] = humidity;
+  jsonDocument["temperature"] = round(temperature * 10.0) / 10.0;
+  jsonDocument["humidity"] = round(humidity * 10.0) / 10.0;
   jsonDocument["fireDetected"] = isFlameDetected;
   jsonDocument["checkResult"] = isSensorCheck;
-  jsonDocument["time"] = currentTime.getUnixTime();
+  jsonDocument["time"] = currentTime.getUnixTime() * 1000.0;
 
   // JSON 문자열을 고정할 버퍼
   char buffer[256];
@@ -227,5 +249,5 @@ void loop(){
   // MQTT 브로커에 JSON 문자열 게시
   mqtt_client.publish(mqtt_topic, buffer);
   
-  delay(4000);
+  delay(2000);
 }
