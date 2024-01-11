@@ -5,15 +5,15 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
-const int flameSensorPin = A0; // 불꽃 감지 센서 핀
-const int pirSensorPin = 2; // 인체 감지 센서 핀
+const int flameSensorPin = 0; // 불꽃 감지 센서 핀
+// const int pirSensorPin = 2; // 인체 감지 센서 핀
 const int irLedPin = 3; // 적외선 송신 모듈 핀
 DHT dht(1, DHT22); // 온습도 센서 핀
 
 char ssid[] = "";    // 와이파이 아이디
 char pass[] = "";    // 와이파이 비밀번호
 
-char mqtt_server[] = "fbb1763c.ala.us-east-1.emqxsl.com"; // MQTT 브로커 주소
+char mqtt_server[] = "mqtts://fbb1763c.ala.us-east-1.emqxsl.com"; // MQTT 브로커 주소
 char mqtt_port = 8883;
 char mqtt_user[] = "capstone"; // MQTT 아이디
 char mqtt_pass[] = "1234"; // MQTT 비밀번호
@@ -34,7 +34,7 @@ NTPClient timeClient(ntpUDP, ntpServerName, timeZone * 3600);
 void setup() {
   Serial.begin(9600);
   pinMode(flameSensorPin, INPUT); // 불꽃 센서 입력모드 설정
-  pinMode(pirSensorPin, INPUT); // 인체감지 센서 입력모드 설정
+  // pinMode(pirSensorPin, INPUT); // 인체감지 센서 입력모드 설정
   pinMode(irLedPin, OUTPUT); // 적외선 송신 모듈 출력모드 설정
   dht.begin(); // 온습도 센서 동작
 
@@ -90,18 +90,18 @@ void loop() {
   float temperature = dht.readTemperature(); // 온도 센서 데이터
   float humidity = dht.readHumidity(); // 습도 센서 데이터
   bool isFlameDetected = checkFlame(); // 불꽃감지 센서 데이터
-  unsigned long isMotionDetected = checkMotion(); // 인체감지 센서 데이터
+  //unsigned long isMotionDetected = checkMotion(); // 인체감지 센서 데이터
 
   // JSON 문서 생성
   DynamicJsonDocument jsonDocument(200);
 
   // JSON 문서를 데이터로 채우기
   jsonDocument["id"] = 1;
-  jsonDocument["name"] = "정보공학관 2층";
+  jsonDocument["name"] = "정보공학관 8층";
   jsonDocument["temperature"] = temperature;
   jsonDocument["humidity"] = humidity;
   jsonDocument["fireDetected"] = isFlameDetected;
-  jsonDocument["movementDetectedTime"] = isMotionDetected;
+  //jsonDocument["movementDetectedTime"] = isMotionDetected;
   jsonDocument["checkResult"] = isSensorCheck;
   jsonDocument["time"] = epochTime;
 
@@ -127,13 +127,13 @@ bool checkFlame() {
 }
 
 // 인체감지 관련 메소드
-unsigned long checkMotion() {
-  int motionValue = digitalRead(pirSensorPin); // 인체 감지 센서 동작
-  if (motionValue == HIGH) {
-    unsigned long epochTime = timeClient.getEpochTime(); // 현재시간 정보 데이터
-    return epochTime;  // 움직임이 감지되면
-  }
-}
+//unsigned long checkMotion() {
+//  int motionValue = digitalRead(pirSensorPin); // 인체 감지 센서 동작
+//  if (motionValue == HIGH) {
+//    unsigned long epochTime = timeClient.getEpochTime(); // 현재시간 정보 데이터
+//    return epochTime;  // 움직임이 감지되면
+//  }
+// }
 
 // 불꽃감지 센서 점검 관련 메소드
 bool outputIRSignal() {
