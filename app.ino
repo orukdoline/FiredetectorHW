@@ -49,7 +49,7 @@ void loop() {
 
 // 화재감지 관련 메소드
 bool checkFlame() {
-  int flamesensorValue = analogRead(flameSensorPin); // 불꽃감지 센서 동작
+  int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
   float temperature = dht.readTemperature(); // 온도 센서 동작
   int threshold = 500; // 불꽃 센서가 반응하는 적외선 수치
   if (flamesensorValue > threshold && temperature > 50) return true;  // 불꽃이 감지되고 주변온도가 높으면
@@ -70,7 +70,7 @@ bool outputIRSignal() {
   int threshold = 500; // 불꽃 센서가 반응하는 적외선 수치
 
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
-  int flamesensorValue = analogRead(flameSensorPin); // 불꽃감지 센서 동작
+  int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
   delay(3000); // 3초 대기
   //digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
 
