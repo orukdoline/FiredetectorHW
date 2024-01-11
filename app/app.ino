@@ -67,13 +67,12 @@ bool checkFlame() {
 
 // 불꽃감지 센서 점검 관련 메소드
 bool outputIRSignal() {
-  int threshold = 500; // 불꽃 센서가 반응하는 적외선 수치
 
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
   int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
   delay(3000); // 3초 대기
   //digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
 
-  if (flamesensorValue > threshold) return true;  // 불꽃 센서가 정상작동하면
+  if (flamesensorValue == true) return true;  // 불꽃 센서가 정상작동하면
   else return false; // 불꽃 센서가 오작동하면
 }
