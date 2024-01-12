@@ -1,4 +1,5 @@
 #include "RTC.h"
+#include "Arduino_LED_Matrix.h"
 #include <NTPClient.h>
 
 #if defined(ARDUINO_PORTENTA_C33)
@@ -65,6 +66,29 @@ const int greenLed = 5; // GreenLED 핀
 
 bool isSensorCheck = true;
 
+ArduinoLEDMatrix matrix;
+uint8_t off_frame[8][12] = {
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+};
+
+  uint8_t on_frame[8][12] = {
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }
+};
+
 void printWifiStatus() {
   // print the SSID of the network you're attached to:
   Serial.print("SSID: ");
@@ -125,27 +149,6 @@ void connectToMQTT() {
     }
 }
 
-//void mqttCallback(char *topic, byte *payload, unsigned int length) {
-//    Serial.print("Message received on topic: ");
-//    Serial.print(topic);
-//    Serial.print("]: ");
-//    for (int i = 0; i < length; i++) {
-//        Serial.print((char) payload[i]);
-//    }
-//    Serial.println();
-//}
-
-void OnRedLed() {
-  analogWrite(greenLed, 0);
-  analogWrite(redLed, 800);
-  delay(1000);
-  analogWrite(redLed, 0);
-}
-
-void OnGreenLed() {
-  analogWrite(greenLed, 800);
-}
-
 bool outputIRSignal() {
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
   int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
@@ -174,8 +177,10 @@ void setup(){
   timeClient.begin();
   timeClient.update();
 
-  //auto timeZoneOffsetHours = 9;
-  auto unixTime = timeClient.getEpochTime(); // + (timeZoneOffsetHours * 3600);
+  // matrix led
+  matrix.begin();
+
+  auto unixTime = timeClient.getEpochTime();
   Serial.print("Unix time = ");
   Serial.println(unixTime);
   RTCTime timeToSet = RTCTime(unixTime);
@@ -198,7 +203,6 @@ void setup(){
   Serial.println("The RTC was just set to: " + String(currentTime));
 
   mqtt_client.setServer(mqtt_broker, mqtt_port);
-  //mqtt_client.setCallback(mqttCallback);
   connectToMQTT();
 
   pinMode(flameSensorPin, INPUT); // 불꽃 센서 입력모드 설정
@@ -218,17 +222,15 @@ void loop(){
   float humidity = dht.readHumidity(); // 습도 센서 데이터
   bool isFlameDetected = checkFlame(); // 불꽃감지 센서 데이터
 
-  //Serial.print("temperature : ");
-  //Serial.println(temperature);
-  //Serial.print("humidity : ");
-  //Serial.println(humidity);
+  if ( isFlameDetected == 1 ) {
+    matrix.renderBitmap(on_frame, 8, 12);
+    delay(1000);
+    matrix.renderBitmap(off_frame, 8, 12);
+  }
+  else matrix.renderBitmap(off_frame, 8, 12);
 
   RTCTime currentTime;
   RTC.getTime(currentTime); 
-
-  // Serial.println(currentTime.getUnixTime() * 1000);
-
-  isFlameDetected == true ? OnRedLed() : OnGreenLed();
 
   DynamicJsonDocument jsonDocument(200);
 
