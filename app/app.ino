@@ -113,7 +113,7 @@ void connectToWiFi(){
 void connectToMQTT() {
     client.setCACert(ca_cert);
     while (!mqtt_client.connected()) {
-        String client_id = "esp8266-client-1234";
+        String client_id = "esp8266-client-2345";
         Serial.println("Connecting to MQTT Broker.....");
         if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
             Serial.println("Connected to MQTT broker");
@@ -174,8 +174,8 @@ void setup(){
   timeClient.begin();
   timeClient.update();
 
-  auto timeZoneOffsetHours = 9;
-  auto unixTime = timeClient.getEpochTime() + (timeZoneOffsetHours * 3600);
+  //auto timeZoneOffsetHours = 9;
+  auto unixTime = timeClient.getEpochTime(); // + (timeZoneOffsetHours * 3600);
   Serial.print("Unix time = ");
   Serial.println(unixTime);
   RTCTime timeToSet = RTCTime(unixTime);
@@ -232,13 +232,13 @@ void loop(){
 
   DynamicJsonDocument jsonDocument(200);
 
-  jsonDocument["id"] = 5;
-  jsonDocument["name"] = "정보공학관 3층";
+  jsonDocument["id"] = 1;
+  jsonDocument["name"] = "정보공학관 8층";
   jsonDocument["temperature"] = round(temperature * 10.0) / 10.0;
   jsonDocument["humidity"] = round(humidity * 10.0) / 10.0;
   jsonDocument["fireDetected"] = isFlameDetected;
   jsonDocument["checkResult"] = isSensorCheck;
-  jsonDocument["time"] = currentTime.getUnixTime();
+  jsonDocument["time"] = currentTime.getUnixTime() * 1000;
 
   // JSON 문자열을 고정할 버퍼
   char buffer[256];
