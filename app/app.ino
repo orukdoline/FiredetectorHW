@@ -149,10 +149,10 @@ void connectToMQTT() {
 
 bool outputIRSignal() {
   digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
+    delay(2000); // 2초 대기
   int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
   delay(2000); // 2초 대기
   digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
-  delay(2000); // 2초 대기
   return flamesensorValue == 0 ? true : false;
 }
 
