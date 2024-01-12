@@ -61,8 +61,6 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 const int flameSensorPin = 0; // 불꽃 감지 센서 핀
 const int irLedPin = 3; // 적외선 송신 모듈 핀
 DHT dht(1, DHT22); // 온습도 센서 핀
-const int redLed = 4; // RedLED 핀
-const int greenLed = 5; // GreenLED 핀
 
 bool isSensorCheck = true;
 
