@@ -125,15 +125,15 @@ void connectToMQTT() {
     }
 }
 
-void mqttCallback(char *topic, byte *payload, unsigned int length) {
-    Serial.print("Message received on topic: ");
-    Serial.print(topic);
-    Serial.print("]: ");
-    for (int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
-    }
-    Serial.println();
-}
+//void mqttCallback(char *topic, byte *payload, unsigned int length) {
+//    Serial.print("Message received on topic: ");
+//    Serial.print(topic);
+//    Serial.print("]: ");
+//    for (int i = 0; i < length; i++) {
+//        Serial.print((char) payload[i]);
+//    }
+//    Serial.println();
+//}
 
 void OnRedLed() {
   analogWrite(greenLed, 0);
@@ -151,7 +151,7 @@ bool outputIRSignal() {
   int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
   delay(5000); // 5초 대기
   digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
-  Serial.println("Check function operation!");
+  //Serial.println("check function operation!");
   return flamesensorValue == 0 ? true : false;
 }
 
@@ -174,23 +174,23 @@ void setup(){
   timeClient.begin();
   timeClient.update();
 
-  // auto timeZoneOffsetHours = 9;
-  auto unixTime = timeClient.getEpochTime(); // + (timeZoneOffsetHours * 3600);
+  auto timeZoneOffsetHours = 9;
+  auto unixTime = timeClient.getEpochTime() + (timeZoneOffsetHours * 3600);
   Serial.print("Unix time = ");
   Serial.println(unixTime);
   RTCTime timeToSet = RTCTime(unixTime);
   RTC.setTime(timeToSet);
 
   // Trigger the alarm every time the seconds are zero
-  //RTCTime alarmTime;
-  //alarmTime.setSecond(0);
+  RTCTime alarmTime;
+  alarmTime.setSecond(0);
 
   // Make sure to only match on the seconds in this example - not on any other parts of the date/time
-  //AlarmMatch matchTime;
-  //matchTime.addMatchSecond();
+  AlarmMatch matchTime;
+  matchTime.addMatchSecond();
 
-  //sets the alarm callback
-  //RTC.setAlarmCallback(alarmCallback, alarmTime, matchTime);
+  // sets the alarm callback
+  RTC.setAlarmCallback(alarmCallback, alarmTime, matchTime);
 
   // Retrieve the date and time from the RTC and print them
   RTCTime currentTime;
@@ -198,7 +198,7 @@ void setup(){
   Serial.println("The RTC was just set to: " + String(currentTime));
 
   mqtt_client.setServer(mqtt_broker, mqtt_port);
-  mqtt_client.setCallback(mqttCallback);
+  //mqtt_client.setCallback(mqttCallback);
   connectToMQTT();
 
   pinMode(flameSensorPin, INPUT); // 불꽃 센서 입력모드 설정
@@ -232,13 +232,13 @@ void loop(){
 
   DynamicJsonDocument jsonDocument(200);
 
-  jsonDocument["id"] = 2;
-  jsonDocument["name"] = "정보공학관 2층";
+  jsonDocument["id"] = 5;
+  jsonDocument["name"] = "정보공학관 3층";
   jsonDocument["temperature"] = round(temperature * 10.0) / 10.0;
   jsonDocument["humidity"] = round(humidity * 10.0) / 10.0;
   jsonDocument["fireDetected"] = isFlameDetected;
   jsonDocument["checkResult"] = isSensorCheck;
-  jsonDocument["time"] = currentTime.getUnixTime() * 1000.0;
+  jsonDocument["time"] = currentTime.getUnixTime();
 
   // JSON 문자열을 고정할 버퍼
   char buffer[256];
