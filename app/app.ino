@@ -16,7 +16,7 @@
 
 // WiFi credentials
 const char *ssid = "SSID";             // Replace with your WiFi name
-const char *pass = "PASSWORD";   // Replace with your WiFi password
+const char *pass = "PASS";   // Replace with your WiFi password
 
 // MQTT Broker settings
 const int mqtt_port = 8883;  // MQTT port (TLS)
@@ -161,7 +161,11 @@ void OnGreenLed() {
 }
 
 bool checkFlame(int sec, bool inspect) {
-  if(inspect) digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
+  if(inspect) {
+    digitalWrite(irLedPin, HIGH);
+  }else{
+    digitalWrite(irLedPin, LOW);
+  }
 
   int flamesensorValue; // 불꽃감지 센서 동작
   int startTime = millis();
@@ -174,7 +178,7 @@ bool checkFlame(int sec, bool inspect) {
     endTime = millis();
   }
 
-  if(inspect) digitalWrite(irLedPin, LOW); // 적외선 LED 동작
+  digitalWrite(irLedPin, LOW);
 
   return flamesensorValue == 0 ? true : false;
 }
@@ -191,15 +195,13 @@ void setup(){
 
   connectToWiFi();
   RTC.begin();
-  Serial.println("\nStarting connection to server...");
   timeClient.begin();
   timeClient.update();
 
   // matrix led
   matrix.begin();
 
-  //auto timeZoneOffsetHours = 9;
-  auto unixTime = timeClient.getEpochTime(); // + (timeZoneOffsetHours * 3600);
+  auto unixTime = timeClient.getEpochTime();
   Serial.print("Unix time = ");
   Serial.println(unixTime);
   RTCTime timeToSet = RTCTime(unixTime);
@@ -232,8 +234,7 @@ void setup(){
 }
 
 void loop(){
-  timeClient.update();
-
+  // MQTT Broker 연결
   if (!mqtt_client.connected()) {
       connectToMQTT();
   }
@@ -241,7 +242,7 @@ void loop(){
 
   float temperature = dht.readTemperature(); // 온도 센서 데이터
   float humidity = dht.readHumidity(); // 습도 센서 데이터
-  bool isFlameDetected = checkFlame(5, false); // 불꽃감지 센서 데이터
+  bool isFlameDetected = digitalRead(irLedPin) == HIGH ? checkFlame(5, false) : false; // 불꽃감지 센서 데이터
 
   if(isFlameDetected) {
     matrix.renderBitmap(on_frame, 8, 12);
@@ -249,6 +250,7 @@ void loop(){
     matrix.renderBitmap(off_frame, 8, 12);
   }
 
+  // 내장 RTC 에서 시간 값을 가져옴.
   RTCTime currentTime;
   RTC.getTime(currentTime); 
 
@@ -260,7 +262,7 @@ void loop(){
   jsonDocument["humidity"] = round(humidity * 10.0) / 10.0;
   jsonDocument["fireDetected"] = isFlameDetected;
   jsonDocument["checkResult"] = isSensorCheck;
-  jsonDocument["time"] = currentTime.getUnixTime() * 1000;
+  jsonDocument["time"] = currentTime.getUnixTime() * 1000; // sec -> ms 단위 변환
 
   // JSON 문자열을 고정할 버퍼
   char buffer[256];
@@ -270,4 +272,6 @@ void loop(){
 
   // MQTT 브로커에 JSON 문자열 게시
   mqtt_client.publish(mqtt_topic, buffer);
+
+  delay(4000);
 }
