@@ -15,8 +15,8 @@
 #include <DHT.h>
 
 // WiFi credentials
-const char *ssid = "JSW iPhone14 Pro";             // Replace with your WiFi name
-const char *pass = "0000001151";   // Replace with your WiFi password
+const char *ssid = "SSID";             // Replace with your WiFi name
+const char *pass = "PASSWORD";   // Replace with your WiFi password
 
 // MQTT Broker settings
 const int mqtt_port = 8883;  // MQTT port (TLS)
@@ -61,8 +61,10 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 const int flameSensorPin = 0; // 불꽃 감지 센서 핀
 const int irLedPin = 3; // 적외선 송신 모듈 핀
 DHT dht(1, DHT22); // 온습도 센서 핀
-
-bool isSensorCheck = true;
+const int redLed = 4; // RedLED 핀
+const int greenLed = 5; // GreenLED 핀
+bool isSensorCheck = false;
+long randNumber;
 
 ArduinoLEDMatrix matrix;
 uint8_t off_frame[8][12] = {
@@ -76,7 +78,7 @@ uint8_t off_frame[8][12] = {
   { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
-  uint8_t on_frame[8][12] = {
+uint8_t on_frame[8][12] = {
   { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
   { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
   { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
@@ -135,7 +137,7 @@ void connectToWiFi(){
 void connectToMQTT() {
     client.setCACert(ca_cert);
     while (!mqtt_client.connected()) {
-        String client_id = "esp8266-client-2345";
+        String client_id = "esp8266-client-" + random(300);
         Serial.println("Connecting to MQTT Broker.....");
         if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
             Serial.println("Connected to MQTT broker");
@@ -147,27 +149,45 @@ void connectToMQTT() {
     }
 }
 
-bool outputIRSignal() {
-  digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
-  delay(2000); // 2초 대기
-  int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
-  delay(2000); // 2초 대기
-  digitalWrite(irLedPin, LOW); // 적외선 LED 끄기
+void OnRedLed() {
+  analogWrite(greenLed, 0);
+  analogWrite(redLed, 800);
+  delay(1000);
+  analogWrite(redLed, 0);
+}
+
+void OnGreenLed() {
+  analogWrite(greenLed, 800);
+}
+
+bool checkFlame(int sec, bool inspect) {
+  if(inspect) digitalWrite(irLedPin, HIGH); // 적외선 LED 동작
+
+  int flamesensorValue; // 불꽃감지 센서 동작
+  int startTime = millis();
+  int endTime = startTime;
+
+  while((endTime - startTime) <= sec * 1000)
+  {
+    flamesensorValue = digitalRead(flameSensorPin);
+    if(flamesensorValue == 0) break; // 센서가 인식되면 즉시 종료.
+    endTime = millis();
+  }
+
+  if(inspect) digitalWrite(irLedPin, LOW); // 적외선 LED 동작
+
   return flamesensorValue == 0 ? true : false;
 }
 
-bool checkFlame() {
-  int flamesensorValue = digitalRead(flameSensorPin); // 불꽃감지 센서 동작
-  return flamesensorValue == 0 ? true : false;
-}
-
-void alarmCallback() {
-  isSensorCheck = outputIRSignal();
+void inspectFlameSensor() {
+  isSensorCheck = checkFlame(5, true);
 }
 
 void setup(){
   Serial.begin(9600);
   while (!Serial);
+  
+  randomSeed(analogRead(0));
 
   connectToWiFi();
   RTC.begin();
@@ -178,7 +198,8 @@ void setup(){
   // matrix led
   matrix.begin();
 
-  auto unixTime = timeClient.getEpochTime();
+  //auto timeZoneOffsetHours = 9;
+  auto unixTime = timeClient.getEpochTime(); // + (timeZoneOffsetHours * 3600);
   Serial.print("Unix time = ");
   Serial.println(unixTime);
   RTCTime timeToSet = RTCTime(unixTime);
@@ -193,7 +214,7 @@ void setup(){
   matchTime.addMatchSecond();
 
   // sets the alarm callback
-  RTC.setAlarmCallback(alarmCallback, alarmTime, matchTime);
+  RTC.setAlarmCallback(inspectFlameSensor, alarmTime, matchTime);
 
   // Retrieve the date and time from the RTC and print them
   RTCTime currentTime;
@@ -206,6 +227,8 @@ void setup(){
   pinMode(flameSensorPin, INPUT); // 불꽃 센서 입력모드 설정
   pinMode(irLedPin, OUTPUT); // 적외선 송신 모듈 출력모드 설정
   dht.begin(); // 온습도 센서 동작
+
+  isSensorCheck = checkFlame(5, true);
 }
 
 void loop(){
@@ -218,22 +241,21 @@ void loop(){
 
   float temperature = dht.readTemperature(); // 온도 센서 데이터
   float humidity = dht.readHumidity(); // 습도 센서 데이터
-  bool isFlameDetected = checkFlame(); // 불꽃감지 센서 데이터
+  bool isFlameDetected = checkFlame(5, false); // 불꽃감지 센서 데이터
 
-  if ( isFlameDetected == 1 ) {
+  if(isFlameDetected) {
     matrix.renderBitmap(on_frame, 8, 12);
-    delay(1000);
+  } else {
     matrix.renderBitmap(off_frame, 8, 12);
   }
-  else matrix.renderBitmap(off_frame, 8, 12);
 
   RTCTime currentTime;
   RTC.getTime(currentTime); 
 
   DynamicJsonDocument jsonDocument(200);
 
-  jsonDocument["id"] = 1;
-  jsonDocument["name"] = "정보공학관 8층";
+  jsonDocument["id"] = 10;
+  jsonDocument["name"] = "정보공학관 20층";
   jsonDocument["temperature"] = round(temperature * 10.0) / 10.0;
   jsonDocument["humidity"] = round(humidity * 10.0) / 10.0;
   jsonDocument["fireDetected"] = isFlameDetected;
@@ -248,6 +270,4 @@ void loop(){
 
   // MQTT 브로커에 JSON 문자열 게시
   mqtt_client.publish(mqtt_topic, buffer);
-  
-  delay(2000);
 }
