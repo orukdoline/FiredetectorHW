@@ -15,8 +15,8 @@
 #include <DHT.h>
 
 // WiFi credentials
-const char *ssid = "SSID";             // Replace with your WiFi name
-const char *pass = "PASS";   // Replace with your WiFi password
+const char *ssid = "JSW iPhone14 Pro";             // Replace with your WiFi name
+const char *pass = "0000001151";   // Replace with your WiFi password
 
 // MQTT Broker settings
 const int mqtt_port = 8883;  // MQTT port (TLS)
@@ -167,6 +167,10 @@ bool checkFlame(int sec, bool inspect) {
     digitalWrite(irLedPin, LOW);
   }
 
+  if(digitalRead(irLedPin) == HIGH){
+    return false;
+  }
+
   int flamesensorValue; // 불꽃감지 센서 동작
   int startTime = millis();
   int endTime = startTime;
@@ -242,7 +246,12 @@ void loop(){
 
   float temperature = dht.readTemperature(); // 온도 센서 데이터
   float humidity = dht.readHumidity(); // 습도 센서 데이터
-  bool isFlameDetected = digitalRead(irLedPin) == HIGH ? checkFlame(5, false) : false; // 불꽃감지 센서 데이터
+  // bool isFlameDetected = digitalRead(irLedPin) == LOW ? checkFlame(5, false) : false; // 불꽃감지 센서 데이터
+  bool isFlameDetected = checkFlame(5, false);
+
+  // if(digitalRead(irLedPin) == LOW){
+  //   isFlameDetected = checkFlame(5, false);
+  // }
 
   if(isFlameDetected) {
     matrix.renderBitmap(on_frame, 8, 12);
@@ -256,8 +265,8 @@ void loop(){
 
   DynamicJsonDocument jsonDocument(200);
 
-  jsonDocument["id"] = 10;
-  jsonDocument["name"] = "정보공학관 20층";
+  jsonDocument["id"] = 0;
+  jsonDocument["name"] = "정보공학관 1층";
   jsonDocument["temperature"] = round(temperature * 10.0) / 10.0;
   jsonDocument["humidity"] = round(humidity * 10.0) / 10.0;
   jsonDocument["fireDetected"] = isFlameDetected;
